@@ -570,30 +570,30 @@ public OnPlayerSelectObject(playerid, SELECT_OBJECT:type, objectid, modelid, Flo
 #endif
 
 
-public OnPlayerPickUpPickup(playerid, pickupid)
+public OnPlayerPickUpPlayerPickup(playerid, pickupid)
 {
 	if (Streamer_GetItemStreamerID(playerid, STREAMER_TYPE_PICKUP, pickupid) != INVALID_STREAMER_ID)
 		return 1;
 
 	new ret = 1;
 
-	#if defined Streamer_OnPlayerPickUpPickup
-		ret = Streamer_OnPlayerPickUpPickup(playerid, pickupid);
+	#if defined Streamer_OnPlayerPickUpPlayerPickup
+		ret = Streamer_OnPlayerPickUpPlayerPickup(playerid, pickupid);
 	#endif
 
 	return ret;
 }
 
-#if defined _ALS_OnPlayerPickUpPickup
-	#undef OnPlayerPickUpPickup
+#if defined _ALS_OnPlayerPickUpPlayerPickup
+	#undef OnPlayerPickUpPlayerPickup
 #else
-	#define _ALS_OnPlayerPickUpPickup
+	#define _ALS_OnPlayerPickUpPlayerPickup
 #endif
 
-#define OnPlayerPickUpPickup Streamer_OnPlayerPickUpPickup
+#define OnPlayerPickUpPlayerPickup Streamer_OnPlayerPickUpPlayerPickup
 
-#if defined Streamer_OnPlayerPickUpPickup
-	forward Streamer_OnPlayerPickUpPickup(playerid, pickupid);
+#if defined Streamer_OnPlayerPickUpPlayerPickup
+	forward Streamer_OnPlayerPickUpPlayerPickup(playerid, pickupid);
 #endif
 
 
