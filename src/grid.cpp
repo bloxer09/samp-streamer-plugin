@@ -597,6 +597,30 @@ void Grid::processDiscoveredCellsForPlayer(Player &player, std::vector<SharedCel
 		}
 		playerCells.back()->objects.swap(player.visibleCell->objects);
 	}
+	if (player.enabledItems[STREAMER_TYPE_PICKUP])
+	{
+		std::unordered_map<int, Item::SharedPickup>::iterator p = player.visibleCell->pickups.begin();
+		while (p != player.visibleCell->pickups.end())
+		{
+			if (p->second->cell)
+			{
+				const auto& d = discoveredCells.find(p->second->cell->cellId);
+				if (d != discoveredCells.end())
+				{
+					p = player.visibleCell->pickups.erase(p);
+				}
+				else
+				{
+					++p;
+				}
+			}
+			else
+			{
+				p = player.visibleCell->pickups.erase(p);
+			}
+		}
+		playerCells.back()->pickups.swap(player.visibleCell->pickups);
+	}
 	if (player.enabledItems[STREAMER_TYPE_CP])
 	{
 		std::unordered_map<int, Item::SharedCheckpoint>::iterator c = player.visibleCell->checkpoints.begin();

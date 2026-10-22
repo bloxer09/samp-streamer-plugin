@@ -44,10 +44,8 @@ public:
 	std::vector<int> destroyedActors;
 
 	std::unordered_map<std::pair<int, int>, Item::SharedActor, pair_hash> discoveredActors;
-	std::unordered_map<std::pair<int, int>, Item::SharedPickup, pair_hash> discoveredPickups;
 
 	std::unordered_map<std::pair<int, int>, int, pair_hash> internalActors;
-	std::unordered_map<std::pair<int, int>, int, pair_hash> internalPickups;
 
 	std::unordered_map<int, Item::SharedActor> actors;
 	std::unordered_map<int, Item::SharedArea> areas;

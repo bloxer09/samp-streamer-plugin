@@ -103,14 +103,6 @@ void Streamer::startAutomaticUpdate()
 				{
 					switch (*t)
 					{
-						case STREAMER_TYPE_PICKUP:
-						{
-							if (!core->getData()->pickups.empty() && p->second.enabledItems[STREAMER_TYPE_PICKUP])
-							{
-								discoverPickups(p->second, cells);
-							}
-							break;
-						}
 						case STREAMER_TYPE_ACTOR:
 						{
 							if (!core->getData()->actors.empty() && p->second.enabledItems[STREAMER_TYPE_ACTOR])
@@ -127,11 +119,6 @@ void Streamer::startAutomaticUpdate()
 			{
 				switch (*t)
 				{
-					case STREAMER_TYPE_PICKUP:
-					{
-						streamPickups();
-						break;
-					}
 					case STREAMER_TYPE_ACTOR:
 					{
 						Utility::processPendingDestroyedActors();
@@ -179,7 +166,7 @@ void Streamer::startManualUpdate(Player &player, int type)
 void Streamer::performPlayerUpdate(Player &player, bool automatic)
 {
 	Eigen::Vector3f delta = Eigen::Vector3f::Zero(), position = player.position;
-	bool update = true;
+	bool update = true, idle = false;
 	if (automatic)
 	{
 		player.interiorId = ompgdk::GetPlayerInterior(player.playerId);
@@ -214,6 +201,7 @@ void Streamer::performPlayerUpdate(Player &player, bool automatic)
 				else
 				{
 					update = player.updateWhenIdle;
+					idle = true;
 				}
 			}
 			else
@@ -309,6 +297,14 @@ void Streamer::performPlayerUpdate(Player &player, bool automatic)
 						}
 						break;
 					}
+					case STREAMER_TYPE_PICKUP:
+					{
+						if (!core->getData()->pickups.empty() && player.enabledItems[STREAMER_TYPE_PICKUP])
+						{
+							processPickups(player, cells);
+						}
+						break;
+					}
 					case STREAMER_TYPE_MAP_ICON:
 					{
 						if (!core->getData()->mapIcons.empty() && player.enabledItems[STREAMER_TYPE_MAP_ICON])
@@ -357,6 +353,10 @@ void Streamer::performPlayerUpdate(Player &player, bool automatic)
 					}
 				}
 			}
+		}
+		if (!update && idle && !core->getData()->pickups.empty() && player.enabledItems[STREAMER_TYPE_PICKUP])
+		{
+			processPickups(player, cells);
 		}
 		if (!delta.isZero())
 		{
@@ -1016,83 +1016,105 @@ void Streamer::processObjects(Player &player, const std::vector<SharedCell> &cel
 	}
 }
 
-void Streamer::discoverPickups(Player &player, const std::vector<SharedCell> &cells)
+void Streamer::processPickups(Player &player, const std::vector<SharedCell> &cells)
 {
+	std::multimap<std::pair<int, float>, Item::SharedPickup, Item::PairCompare> discoveredPickups, existingPickups;
 	for (std::vector<SharedCell>::const_iterator c = cells.begin(); c != cells.end(); ++c)
 	{
 		for (std::unordered_map<int, Item::SharedPickup>::const_iterator p = (*c)->pickups.begin(); p != (*c)->pickups.end(); ++p)
 		{
-			for (std::unordered_set<int>::const_iterator w = p->second->worlds.begin(); w != p->second->worlds.end(); ++w)
+			float distance = std::numeric_limits<float>::infinity();
+			if (doesPlayerSatisfyConditions(p->second->players, player.playerId, p->second->interiors, player.interiorId, p->second->worlds, player.worldId, p->second->areas, player.internalAreas, p->second->inverseAreaChecking))
 			{
-				if (player.worldId != *w && *w != -1)
+				if (p->second->comparableStreamDistance < STREAMER_STATIC_DISTANCE_CUTOFF)
 				{
-					continue;
+					distance = std::numeric_limits<float>::infinity() * -1.0f;
 				}
-
-				std::unordered_map<std::pair<int, int>, Item::SharedPickup, pair_hash>::iterator d = core->getData()->discoveredPickups.find(std::make_pair(p->first, *w));
-				if (d == core->getData()->discoveredPickups.end())
+				else
 				{
-					const int playerWorldId = *w == -1 ? -1 : player.worldId;
-					if (doesPlayerSatisfyConditions(p->second->players, player.playerId, p->second->interiors, player.interiorId, p->second->worlds, playerWorldId, p->second->areas, player.internalAreas, p->second->inverseAreaChecking))
+					distance = static_cast<float>(boost::geometry::comparable_distance(player.position, Eigen::Vector3f(p->second->position + p->second->positionOffset)));
+				}
+			}
+			std::unordered_map<int, int>::iterator i = player.internalPickups.find(p->first);
+			if (distance < (p->second->comparableStreamDistance * player.radiusMultipliers[STREAMER_TYPE_PICKUP]))
+			{
+				if (i == player.internalPickups.end())
+				{
+					discoveredPickups.insert(std::make_pair(std::make_pair(p->second->priority, distance), p->second));
+				}
+				else
+				{
+					if (p->second->cell)
 					{
-						if (p->second->comparableStreamDistance < STREAMER_STATIC_DISTANCE_CUTOFF || boost::geometry::comparable_distance(player.position, Eigen::Vector3f(p->second->position + p->second->positionOffset)) < (p->second->comparableStreamDistance * player.radiusMultipliers[STREAMER_TYPE_PICKUP]))
-						{
-							core->getData()->discoveredPickups.insert(std::make_pair(std::make_pair(p->first, *w), p->second));
-						}
+						player.visibleCell->pickups.insert(*p);
 					}
+					existingPickups.insert(std::make_pair(std::make_pair(p->second->priority, distance), p->second));
 				}
 			}
-		}
-	}
-}
-
-void Streamer::streamPickups()
-{
-	std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.begin();
-	while (i != core->getData()->internalPickups.end())
-	{
-		std::unordered_map<std::pair<int, int>, Item::SharedPickup, pair_hash>::iterator d = core->getData()->discoveredPickups.find(i->first);
-		if (d == core->getData()->discoveredPickups.end())
-		{
-			ompgdk::DestroyPickup(i->second);
-			std::unordered_map<int, Item::SharedPickup>::iterator p = core->getData()->pickups.find(i->first.first);
-			if (p != core->getData()->pickups.end())
+			else
 			{
-				if (p->second->streamCallbacks)
+				if (i != player.internalPickups.end())
 				{
-					streamOutCallbacks.push_back(std::make_tuple(STREAMER_TYPE_PICKUP, i->first.first, INVALID_PLAYER_ID));
+					ompgdk::DestroyPlayerPickup(player.playerId, i->second);
+					if (p->second->streamCallbacks)
+					{
+						streamOutCallbacks.push_back(std::make_tuple(STREAMER_TYPE_PICKUP, p->first, player.playerId));
+					}
+					player.eraseInternalPickup(i);
 				}
 			}
-			i = core->getData()->internalPickups.erase(i);
-		}
-		else
-		{
-			core->getData()->discoveredPickups.erase(d);
-			++i;
 		}
 	}
-	std::multimap<int, std::pair<int, Item::SharedPickup> > sortedPickups;
-	for (std::unordered_map<std::pair<int, int>, Item::SharedPickup, pair_hash>::iterator d = core->getData()->discoveredPickups.begin(); d != core->getData()->discoveredPickups.end(); ++d)
+	for (std::multimap<std::pair<int, float>, Item::SharedPickup, Item::PairCompare>::iterator d = discoveredPickups.begin(); d != discoveredPickups.end(); ++d)
 	{
-		sortedPickups.insert(std::make_pair(d->second->priority, std::make_pair(d->first.second, d->second)));
-	}
-	core->getData()->discoveredPickups.clear();
-	for (std::multimap<int, std::pair<int, Item::SharedPickup> >::iterator s = sortedPickups.begin(); s != sortedPickups.end(); ++s)
-	{
-		if (core->getData()->internalPickups.size() == core->getData()->getGlobalMaxVisibleItems(STREAMER_TYPE_PICKUP))
+		std::unordered_map<int, int>::iterator i = player.internalPickups.find(d->second->pickupId);
+		if (i != player.internalPickups.end())
 		{
-			break;
+			continue;
 		}
-		int internalId = ompgdk::CreatePickup(s->second.second->modelId, s->second.second->type, s->second.second->position[0], s->second.second->position[1], s->second.second->position[2], s->second.first);
+		if (player.internalPickups.size() >= player.maxVisiblePickups)
+		{
+			std::multimap<std::pair<int, float>, Item::SharedPickup, Item::PairCompare>::reverse_iterator e = existingPickups.rbegin();
+			if (e != existingPickups.rend())
+			{
+				if (e->first.first < d->first.first || (e->first.second > STREAMER_STATIC_DISTANCE_CUTOFF && d->first.second < e->first.second))
+				{
+					std::unordered_map<int, int>::iterator j = player.internalPickups.find(e->second->pickupId);
+					if (j != player.internalPickups.end())
+					{
+						ompgdk::DestroyPlayerPickup(player.playerId, j->second);
+						if (e->second->streamCallbacks)
+						{
+							streamOutCallbacks.push_back(std::make_tuple(STREAMER_TYPE_PICKUP, e->second->pickupId, player.playerId));
+						}
+						player.eraseInternalPickup(j);
+					}
+					if (e->second->cell)
+					{
+						player.visibleCell->pickups.erase(e->second->pickupId);
+					}
+					existingPickups.erase(--e.base());
+				}
+			}
+			if (player.internalPickups.size() >= player.maxVisiblePickups)
+			{
+				break;
+			}
+		}
+		int internalId = ompgdk::CreatePlayerPickup(player.playerId, d->second->modelId, d->second->type, d->second->position[0], d->second->position[1], d->second->position[2], -1);
 		if (internalId == INVALID_PICKUP_ID)
 		{
 			break;
 		}
-		if (s->second.second->streamCallbacks)
+		if (d->second->streamCallbacks)
 		{
-			streamInCallbacks.push_back(std::make_tuple(STREAMER_TYPE_PICKUP, s->second.second->pickupId, INVALID_PLAYER_ID));
+			streamInCallbacks.push_back(std::make_tuple(STREAMER_TYPE_PICKUP, d->second->pickupId, player.playerId));
 		}
-		core->getData()->internalPickups.insert(std::make_pair(std::make_pair(s->second.second->pickupId, s->second.first), internalId));
+		player.insertInternalPickup(d->second->pickupId, internalId);
+		if (d->second->cell)
+		{
+			player.visibleCell->pickups.insert(std::make_pair(d->second->pickupId, d->second));
+		}
 	}
 }
 

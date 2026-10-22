@@ -77,8 +77,7 @@ private:
 	void processMapIcons(Player &player, const std::vector<SharedCell> &cells);
 	void processObjects(Player &player, const std::vector<SharedCell> &cells);
 
-	void discoverPickups(Player &player, const std::vector<SharedCell> &cells);
-	void streamPickups();
+	void processPickups(Player &player, const std::vector<SharedCell> &cells);
 	
 	void processTextLabels(Player &player, const std::vector<SharedCell> &cells);
 

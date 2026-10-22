@@ -41,6 +41,7 @@ struct Player
 	int language = 0;
 	std::size_t maxVisibleMapIcons;
 	std::size_t maxVisibleObjects;
+	std::size_t maxVisiblePickups;
 	std::size_t maxVisibleTextLabels;
 	int playerId;
 	Eigen::Vector3f position;
@@ -71,6 +72,8 @@ struct Player
 	std::unordered_map<int, int> internalMapIcons;
 	std::unordered_map<int, int> internalObjects;
 	std::unordered_map<int, int> internalObjectsReverse;
+	std::unordered_map<int, int> internalPickups;
+	std::unordered_map<int, int> internalPickupsReverse;
 	std::unordered_map<int, int> internalTextLabels;
 
 	inline void insertInternalObject(int streamerId, int internalId)
@@ -90,6 +93,25 @@ struct Player
 		internalObjectsReverse.erase(i->second);
 		i->second = newInternalId;
 		internalObjectsReverse.insert(std::make_pair(newInternalId, i->first));
+	}
+
+	inline void insertInternalPickup(int streamerId, int internalId)
+	{
+		internalPickups.insert(std::make_pair(streamerId, internalId));
+		internalPickupsReverse.insert(std::make_pair(internalId, streamerId));
+	}
+
+	inline std::unordered_map<int, int>::iterator eraseInternalPickup(std::unordered_map<int, int>::iterator i)
+	{
+		internalPickupsReverse.erase(i->second);
+		return internalPickups.erase(i);
+	}
+
+	inline void updateInternalPickup(std::unordered_map<int, int>::iterator i, int newInternalId)
+	{
+		internalPickupsReverse.erase(i->second);
+		i->second = newInternalId;
+		internalPickupsReverse.insert(std::make_pair(newInternalId, i->first));
 	}
 
 	inline std::size_t countPendingChunkItems() const

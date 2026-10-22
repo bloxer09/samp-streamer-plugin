@@ -292,24 +292,35 @@ class PickupEvents : public PickupEventHandler, public Singleton<PickupEvents>
 {
 	void onPlayerPickUpPickup(IPlayer& player, IPickup& pickup) override
 	{
-		int playerid = player.getID();
-		int pickupid = pickup.getID();
-		for (std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.begin(); i != core->getData()->internalPickups.end(); ++i)
+		if (pickup.getLegacyPlayer() != &player)
 		{
-			if (i->second == pickupid)
+			return;
+		}
+		IPlayerPickupData* data = queryExtension<IPlayerPickupData>(player);
+		if (!data)
+		{
+			return;
+		}
+		int playerid = player.getID();
+		std::unordered_map<int, Player>::iterator p = core->getData()->players.find(playerid);
+		if (p == core->getData()->players.end())
+		{
+			return;
+		}
+		std::unordered_map<int, int>::iterator i = p->second.internalPickupsReverse.find(data->toLegacyID(pickup.getID()));
+		if (i == p->second.internalPickupsReverse.end())
+		{
+			return;
+		}
+		int dynPickupId = i->second;
+		for (std::set<AMX*>::iterator a = core->getData()->interfaces.begin(); a != core->getData()->interfaces.end(); ++a)
+		{
+			int amxIndex = 0;
+			if (!amx_FindPublic(*a, "OnPlayerPickUpDynamicPickup", &amxIndex))
 			{
-				int dynPickupId = i->first.first;
-				for (std::set<AMX*>::iterator a = core->getData()->interfaces.begin(); a != core->getData()->interfaces.end(); ++a)
-				{
-					int amxIndex = 0;
-					if (!amx_FindPublic(*a, "OnPlayerPickUpDynamicPickup", &amxIndex))
-					{
-						amx_Push(*a, static_cast<cell>(dynPickupId));
-						amx_Push(*a, static_cast<cell>(playerid));
-						amx_Exec(*a, NULL, amxIndex);
-					}
-				}
-				break;
+				amx_Push(*a, static_cast<cell>(dynPickupId));
+				amx_Push(*a, static_cast<cell>(playerid));
+				amx_Exec(*a, NULL, amxIndex);
 			}
 		}
 	}

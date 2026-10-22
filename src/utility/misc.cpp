@@ -139,22 +139,40 @@ std::unordered_map<int, Item::SharedObject>::iterator Utility::destroyObject(std
 std::unordered_map<int, Item::SharedPickup>::iterator Utility::destroyPickup(std::unordered_map<int, Item::SharedPickup>::iterator p)
 {
 	Item::Pickup::identifier.remove(p->first, core->getData()->pickups.size());
-	for (std::unordered_set<int>::const_iterator w = p->second->worlds.begin(); w != p->second->worlds.end(); ++w)
+	for (std::unordered_map<int, Player>::iterator q = core->getData()->players.begin(); q != core->getData()->players.end(); ++q)
 	{
-		std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.find(std::make_pair(p->first, *w));
-		if (i != core->getData()->internalPickups.end())
+		std::unordered_map<int, int>::iterator i = q->second.internalPickups.find(p->first);
+		if (i != q->second.internalPickups.end())
 		{
-			ompgdk::DestroyPickup(i->second);
-			core->getData()->internalPickups.erase(i);
+			ompgdk::DestroyPlayerPickup(q->first, i->second);
+			q->second.eraseInternalPickup(i);
 		}
-		std::unordered_map<std::pair<int, int>, Item::SharedPickup, pair_hash>::iterator d = core->getData()->discoveredPickups.find(std::make_pair(p->first, *w));
-		if (d != core->getData()->discoveredPickups.end())
-		{
-			core->getData()->discoveredPickups.erase(d);
-		}
+		q->second.visibleCell->pickups.erase(p->first);
 	}
 	core->getGrid()->removePickup(p->second);
 	return core->getData()->pickups.erase(p);
+}
+
+void Utility::recreatePlayerPickups(const Item::SharedPickup &pickup)
+{
+	for (std::unordered_map<int, Player>::iterator p = core->getData()->players.begin(); p != core->getData()->players.end(); ++p)
+	{
+		std::unordered_map<int, int>::iterator i = p->second.internalPickups.find(pickup->pickupId);
+		if (i != p->second.internalPickups.end())
+		{
+			ompgdk::DestroyPlayerPickup(p->first, i->second);
+			int internalId = ompgdk::CreatePlayerPickup(p->first, pickup->modelId, pickup->type, pickup->position[0], pickup->position[1], pickup->position[2], -1);
+			if (internalId == INVALID_PICKUP_ID)
+			{
+				p->second.eraseInternalPickup(i);
+				p->second.visibleCell->pickups.erase(pickup->pickupId);
+			}
+			else
+			{
+				p->second.updateInternalPickup(i, internalId);
+			}
+		}
+	}
 }
 
 std::unordered_map<int, Item::SharedRaceCheckpoint>::iterator Utility::destroyRaceCheckpoint(std::unordered_map<int, Item::SharedRaceCheckpoint>::iterator r)
@@ -373,6 +391,10 @@ std::size_t Utility::getMaxVisibleItems(int type, int playerid)
 				{
 					return p->second.maxVisibleObjects;
 				}
+				case STREAMER_TYPE_PICKUP:
+				{
+					return p->second.maxVisiblePickups;
+				}
 				case STREAMER_TYPE_MAP_ICON:
 				{
 					return p->second.maxVisibleMapIcons;
@@ -401,6 +423,11 @@ bool Utility::setMaxVisibleItems(int type, std::size_t value, int playerid)
 					p->second.maxVisibleObjects = value;
 					return true;
 				}
+				case STREAMER_TYPE_PICKUP:
+				{
+					p->second.maxVisiblePickups = value;
+					return true;
+				}
 				case STREAMER_TYPE_MAP_ICON:
 				{
 					p->second.maxVisibleMapIcons = value;
@@ -421,6 +448,11 @@ bool Utility::setMaxVisibleItems(int type, std::size_t value, int playerid)
 			case STREAMER_TYPE_OBJECT:
 			{
 				p->second.maxVisibleObjects = value;
+				break;
+			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				p->second.maxVisiblePickups = value;
 				break;
 			}
 			case STREAMER_TYPE_MAP_ICON:

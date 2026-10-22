@@ -42,6 +42,7 @@ Player::Player(int id)
 	interiorId = 0;
 	maxVisibleMapIcons = core->getData()->getGlobalMaxVisibleItems(STREAMER_TYPE_MAP_ICON);
 	maxVisibleObjects = core->getData()->getGlobalMaxVisibleItems(STREAMER_TYPE_OBJECT);
+	maxVisiblePickups = core->getData()->getGlobalMaxVisibleItems(STREAMER_TYPE_PICKUP);
 	maxVisibleTextLabels = core->getData()->getGlobalMaxVisibleItems(STREAMER_TYPE_3D_TEXT_LABEL);
 	playerId = id;
 	position.setZero();

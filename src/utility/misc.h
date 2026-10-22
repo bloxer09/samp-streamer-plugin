@@ -27,6 +27,7 @@ namespace Utility
 	std::unordered_map<int, Item::SharedMapIcon>::iterator destroyMapIcon(std::unordered_map<int, Item::SharedMapIcon>::iterator m);
 	std::unordered_map<int, Item::SharedObject>::iterator destroyObject(std::unordered_map<int, Item::SharedObject>::iterator o);
 	std::unordered_map<int, Item::SharedPickup>::iterator destroyPickup(std::unordered_map<int, Item::SharedPickup>::iterator p);
+	void recreatePlayerPickups(const Item::SharedPickup &pickup);
 	std::unordered_map<int, Item::SharedRaceCheckpoint>::iterator destroyRaceCheckpoint(std::unordered_map<int, Item::SharedRaceCheckpoint>::iterator r);
 	std::unordered_map<int, Item::SharedTextLabel>::iterator destroyTextLabel(std::unordered_map<int, Item::SharedTextLabel>::iterator t);
 

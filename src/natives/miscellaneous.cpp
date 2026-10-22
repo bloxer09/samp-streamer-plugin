@@ -741,20 +741,6 @@ cell AMX_NATIVE_CALL Natives::Streamer_GetItemInternalID(AMX *amx, cell *params)
 	CHECK_PARAMS(3);
 	switch (static_cast<int>(params[2]))
 	{
-		case STREAMER_TYPE_PICKUP:
-		{
-			int pickupId = static_cast<int>(params[3]);
-			Item::SharedPickup p = core->getData()->pickups[pickupId];
-			for (std::unordered_set<int>::const_iterator w = p->worlds.begin(); w != p->worlds.end(); ++w)
-			{
-				std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.find(std::make_pair(pickupId, *w));
-				if (i != core->getData()->internalPickups.end())
-				{
-					return static_cast<cell>(i->second);
-				}
-			}
-			return INVALID_PICKUP_ID;
-		}
 		case STREAMER_TYPE_ACTOR:
 		{
 			int actorId = static_cast<int>(params[3]);
@@ -800,6 +786,15 @@ cell AMX_NATIVE_CALL Natives::Streamer_GetItemInternalID(AMX *amx, cell *params)
 				}
 				return -1;
 			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				std::unordered_map<int, int>::iterator i = p->second.internalPickups.find(static_cast<int>(params[3]));
+				if (i != p->second.internalPickups.end())
+				{
+					return static_cast<cell>(i->second);
+				}
+				return INVALID_PICKUP_ID;
+			}
 			case STREAMER_TYPE_MAP_ICON:
 			{
 				std::unordered_map<int, int>::iterator i = p->second.internalMapIcons.find(static_cast<int>(params[3]));
@@ -842,17 +837,6 @@ cell AMX_NATIVE_CALL Natives::Streamer_GetItemStreamerID(AMX *amx, cell *params)
 	CHECK_PARAMS(3);
 	switch (static_cast<int>(params[2]))
 	{
-		case STREAMER_TYPE_PICKUP:
-		{
-			for (std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.begin(); i != core->getData()->internalPickups.end(); ++i)
-			{
-				if (i->second == static_cast<int>(params[3]))
-				{
-					return i->first.first;
-				}
-			}
-			return INVALID_STREAMER_ID;
-		}
 		case STREAMER_TYPE_ACTOR:
 		{
 			for (std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalActors.begin(); i != core->getData()->internalActors.end(); ++i)
@@ -892,6 +876,15 @@ cell AMX_NATIVE_CALL Natives::Streamer_GetItemStreamerID(AMX *amx, cell *params)
 				if (p->second.visibleRaceCheckpoint == static_cast<int>(params[3]))
 				{
 					return 1;
+				}
+				return INVALID_STREAMER_ID;
+			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				std::unordered_map<int, int>::iterator i = p->second.internalPickupsReverse.find(static_cast<int>(params[3]));
+				if (i != p->second.internalPickupsReverse.end())
+				{
+					return i->second;
 				}
 				return INVALID_STREAMER_ID;
 			}
@@ -941,20 +934,6 @@ cell AMX_NATIVE_CALL Natives::Streamer_IsItemVisible(AMX *amx, cell *params)
 	CHECK_PARAMS(3);
 	switch (static_cast<int>(params[2]))
 	{
-		case STREAMER_TYPE_PICKUP:
-		{
-			int pickupId = static_cast<int>(params[3]);
-			Item::SharedPickup p = core->getData()->pickups[pickupId];
-			for (std::unordered_set<int>::const_iterator w = p->worlds.begin(); w != p->worlds.end(); ++w)
-			{
-				std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.find(std::make_pair(pickupId, *w));
-				if (i != core->getData()->internalPickups.end())
-				{
-					return 1;
-				}
-			}
-			return 0;
-		}
 		case STREAMER_TYPE_ACTOR:
 		{
 			int actorId = static_cast<int>(params[3]);
@@ -995,6 +974,15 @@ cell AMX_NATIVE_CALL Natives::Streamer_IsItemVisible(AMX *amx, cell *params)
 			case STREAMER_TYPE_RACE_CP:
 			{
 				if (p->second.visibleRaceCheckpoint == static_cast<int>(params[3]))
+				{
+					return 1;
+				}
+				return 0;
+			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				std::unordered_map<int, int>::iterator i = p->second.internalPickups.find(static_cast<int>(params[3]));
+				if (i != p->second.internalPickups.end())
 				{
 					return 1;
 				}
@@ -1042,24 +1030,6 @@ cell AMX_NATIVE_CALL Natives::Streamer_DestroyAllVisibleItems(AMX *amx, cell *pa
 	bool serverWide = static_cast<int>(params[3]) != 0;
 	switch (static_cast<int>(params[2]))
 	{
-		case STREAMER_TYPE_PICKUP:
-		{
-			std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.begin();
-			while (i != core->getData()->internalPickups.end())
-			{
-				std::unordered_map<int, Item::SharedPickup>::iterator p = core->getData()->pickups.find(i->first.first);
-				if (serverWide || (p != core->getData()->pickups.end() && p->second->amx == amx))
-				{
-					ompgdk::DestroyPickup(i->second);
-					i = core->getData()->internalPickups.erase(i);
-				}
-				else
-				{
-					++i;
-				}
-			}
-			return 1;
-		}
 		case STREAMER_TYPE_ACTOR:
 		{
 			std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalActors.begin();
@@ -1132,6 +1102,25 @@ cell AMX_NATIVE_CALL Natives::Streamer_DestroyAllVisibleItems(AMX *amx, cell *pa
 				}
 				return 0;
 			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				std::unordered_map<int, int>::iterator i = p->second.internalPickups.begin();
+				while (i != p->second.internalPickups.end())
+				{
+					std::unordered_map<int, Item::SharedPickup>::iterator q = core->getData()->pickups.find(i->first);
+					if (serverWide || (q != core->getData()->pickups.end() && q->second->amx == amx))
+					{
+						ompgdk::DestroyPlayerPickup(p->first, i->second);
+						p->second.visibleCell->pickups.erase(i->first);
+						i = p->second.eraseInternalPickup(i);
+					}
+					else
+					{
+						++i;
+					}
+				}
+				return 1;
+			}
 			case STREAMER_TYPE_MAP_ICON:
 			{
 				std::unordered_map<int, int>::iterator i = p->second.internalMapIcons.begin();
@@ -1201,10 +1190,6 @@ cell AMX_NATIVE_CALL Natives::Streamer_CountVisibleItems(AMX *amx, cell *params)
 	bool serverWide = static_cast<int>(params[3]) != 0;
 	switch (static_cast<int>(params[2]))
 	{
-		case STREAMER_TYPE_PICKUP:
-		{
-			return static_cast<cell>(core->getData()->internalPickups.size());
-		}
 		case STREAMER_TYPE_ACTOR:
 		{
 			return static_cast<cell>(core->getData()->internalActors.size());
@@ -1234,6 +1219,23 @@ cell AMX_NATIVE_CALL Natives::Streamer_CountVisibleItems(AMX *amx, cell *params)
 					}
 					return static_cast<cell>(count);
 				}
+			}
+			case STREAMER_TYPE_PICKUP:
+			{
+				if (serverWide)
+				{
+					return static_cast<cell>(p->second.internalPickups.size());
+				}
+				int count = 0;
+				for (std::unordered_map<int, int>::iterator i = p->second.internalPickups.begin(); i != p->second.internalPickups.end(); ++i)
+				{
+					std::unordered_map<int, Item::SharedPickup>::iterator q = core->getData()->pickups.find(i->first);
+					if (q != core->getData()->pickups.end() && q->second->amx == amx)
+					{
+						++count;
+					}
+				}
+				return static_cast<cell>(count);
 			}
 			case STREAMER_TYPE_CP:
 			{
@@ -1892,9 +1894,9 @@ cell AMX_NATIVE_CALL Natives::Streamer_GetAllVisibleItems(AMX *amx, cell *params
 			}
 			case STREAMER_TYPE_PICKUP:
 			{
-				for (std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.begin(); i != core->getData()->internalPickups.end(); ++i)
+				for (std::unordered_map<int, int>::iterator i = p->second.internalPickups.begin(); i != p->second.internalPickups.end(); ++i)
 				{
-					std::unordered_map<int, Item::SharedPickup>::iterator q = core->getData()->pickups.find(i->first.first);
+					std::unordered_map<int, Item::SharedPickup>::iterator q = core->getData()->pickups.find(i->first);
 					if (q != core->getData()->pickups.end())
 					{
 						float distance = static_cast<float>(boost::geometry::comparable_distance(p->second.position, q->second->position));
@@ -2232,15 +2234,7 @@ cell AMX_NATIVE_CALL Natives::Streamer_SetItemPos(AMX *amx, cell *params)
 						core->getGrid()->removePickup(p->second, true);
 					}
 				}
-				for (std::unordered_set<int>::const_iterator w = p->second->worlds.begin(); w != p->second->worlds.end(); ++w)
-				{
-					std::unordered_map<std::pair<int, int>, int, pair_hash>::iterator i = core->getData()->internalPickups.find(std::make_pair(p->first, *w));
-					if (i != core->getData()->internalPickups.end())
-					{
-						ompgdk::DestroyPickup(i->second);
-						i->second = ompgdk::CreatePickup(p->second->modelId, p->second->type, p->second->position[0], p->second->position[1], p->second->position[2], *w);
-					}
-				}
+				Utility::recreatePlayerPickups(p->second);
 				return 1;
 			}
 			break;
