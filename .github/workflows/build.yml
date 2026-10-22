@@ -15,7 +15,7 @@ jobs:
   build-windows-release:
     runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
       with:
         submodules: recursive
 
@@ -26,11 +26,10 @@ jobs:
         echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
         echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-
     - name: Install CMake
-      uses: lukka/get-cmake@v3.31.0
+      uses: lukka/get-cmake@v4.4.2
+      with:
+        cmakeVersion: "~3.31.0"
 
     - name: Generate build files
       run: mkdir build && cd build && cmake .. -G "Visual Studio 17 2022" -A Win32
@@ -47,14 +46,14 @@ jobs:
         format: YYYYMMDD
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: streamer-win-release-${{ steps.current-time.outputs.formattedTime }}-${{ steps.vars.outputs.sha_short }}
         path: build/bin/Release
   build-windows-debug:
     runs-on: windows-2022
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
       with:
         submodules: recursive
 
@@ -65,11 +64,10 @@ jobs:
         echo "branch=${GITHUB_REF#refs/heads/}" >> "$GITHUB_OUTPUT"
         echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-
     - name: Install CMake
-      uses: lukka/get-cmake@v3.31.0
+      uses: lukka/get-cmake@v4.4.2
+      with:
+        cmakeVersion: "~3.31.0"
 
     - name: Generate build files
       run: mkdir build && cd build && cmake .. -G "Visual Studio 17 2022" -A Win32
@@ -86,20 +84,20 @@ jobs:
         format: YYYYMMDD
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: streamer-win-debug-${{ steps.current-time.outputs.formattedTime }}-${{ steps.vars.outputs.sha_short }}
         path: build/bin/Debug
 
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     strategy:
       matrix:
         config: [Debug, Release]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7.0.1
       with:
         submodules: recursive
 
@@ -122,7 +120,7 @@ jobs:
         format: YYYYMMDD
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7.0.2
       with:
         name: streamer-linux-${{ matrix.config == 'Debug' && 'debug' || 'release' }}-${{ steps.current-time.outputs.formattedTime }}-${{ steps.vars.outputs.sha_short }}
         path: docker/build/bin
